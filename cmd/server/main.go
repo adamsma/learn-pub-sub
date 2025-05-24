@@ -29,6 +29,18 @@ func main() {
 
 	fmt.Println("Connection established")
 
+	// bind peril_topic
+	_, _, err = pubsub.DeclareAndBind(
+		conn,
+		routing.ExchangePerilTopic,
+		routing.GameLogSlug,
+		fmt.Sprintf("%s.*", routing.GameLogSlug),
+		pubsub.QueueTypeDurable,
+	)
+	if err != nil {
+		log.Fatalf("unable to create new queue: %v", err)
+	}
+
 	gamelogic.PrintServerHelp()
 
 gameloop:
