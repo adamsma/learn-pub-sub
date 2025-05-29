@@ -20,6 +20,11 @@ func main() {
 	}
 	defer conn.Close()
 
+	mqChan, err := conn.Channel()
+	if err != nil {
+		log.Fatal("unable to create RabbitMQ channel")
+	}
+
 	username, err := gamelogic.ClientWelcome()
 	if err != nil {
 		log.Fatalf("invalid username: %v", err)
@@ -41,6 +46,22 @@ func main() {
 		log.Fatalf("unable to subscribe to pause queue: %v", err)
 	}
 
+	// subscribe to move queue
+	err = pubsub.SubscribeJSON(
+		conn,
+		routing.ExchangePerilTopic,
+		"army_moves."+username,
+		"army_moves.*",
+		pubsub.QueueTypeTransient,
+		func(move gamelogic.ArmyMove) {
+			gamestate.HandleMove(move)
+			fmt.Print("> ")
+		},
+	)
+	if err != nil {
+		log.Fatalf("unable to subscribe to move queue: %v", err)
+	}
+
 gameloop:
 	for {
 
@@ -57,11 +78,23 @@ gameloop:
 
 		case "move":
 
-			_, err := gamestate.CommandMove(input)
+			mv, err := gamestate.CommandMove(input)
 			if err != nil {
 				fmt.Printf("invalid move command: %v\n", err)
 				continue
 			}
+
+			err = pubsub.PublishJSON(
+				mqChan,
+				string(routing.ExchangePerilTopic),
+				"army_moves."+username,
+				mv,
+			)
+			if err != nil {
+				fmt.Printf("err broadcasting move command: %v\n", err)
+				continue
+			}
+
 			fmt.Println("Move successful!")
 
 		case "status":
