@@ -46,6 +46,20 @@ func main() {
 		log.Fatalf("unable to subscribe to pause queue: %v", err)
 	}
 
+	handlerMove := func(move gamelogic.ArmyMove) pubsub.AckType {
+		outcome := gamestate.HandleMove(move)
+		fmt.Print("> ")
+
+		switch outcome {
+		case gamelogic.MoveOutComeSafe, gamelogic.MoveOutcomeMakeWar:
+			return pubsub.Ack
+		case gamelogic.MoveOutcomeSamePlayer:
+			fallthrough
+		default:
+			return pubsub.NackDiscard
+		}
+	}
+
 	// subscribe to move queue
 	err = pubsub.SubscribeJSON(
 		conn,
@@ -53,10 +67,7 @@ func main() {
 		"army_moves."+username,
 		"army_moves.*",
 		pubsub.QueueTypeTransient,
-		func(move gamelogic.ArmyMove) {
-			gamestate.HandleMove(move)
-			fmt.Print("> ")
-		},
+		handlerMove,
 	)
 	if err != nil {
 		log.Fatalf("unable to subscribe to move queue: %v", err)

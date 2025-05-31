@@ -3,8 +3,17 @@ package pubsub
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+)
+
+type AckType int
+
+const (
+	Ack AckType = iota
+	NackRequeue
+	NackDiscard
 )
 
 func SubscribeJSON[T any](
@@ -13,7 +22,7 @@ func SubscribeJSON[T any](
 	queueName,
 	key string,
 	simpleQueueType int, // an enum to represent "durable" or "transient"
-	handler func(T),
+	handler func(T) AckType,
 ) error {
 
 	ch, _, err := DeclareAndBind(
@@ -47,9 +56,23 @@ func SubscribeJSON[T any](
 				fmt.Printf("error in processing message: %v", err)
 				continue
 			}
-			handler(msg)
 
-			err = deliv.Ack(false)
+			ack := handler(msg)
+
+			switch ack {
+			case Ack:
+				err = deliv.Ack(false)
+				log.Println("messsage acknowledge")
+			case NackRequeue:
+				err = deliv.Nack(false, true)
+				log.Println("messsage nack and requeued")
+			case NackDiscard:
+				err = deliv.Nack(false, false)
+				log.Println("messsage nack and discarded")
+			default:
+				err = fmt.Errorf("unknown ack type: %v", ack)
+			}
+
 			if err != nil {
 				fmt.Printf("unable to acknowledge: %v", err)
 			}
