@@ -25,8 +25,9 @@ func SubscribeJSON[T any](
 	handler func(T) AckType,
 ) error {
 
+	args := amqp.Table{"x-dead-letter-exchange": "peril_dlx"}
 	ch, _, err := DeclareAndBind(
-		conn, exchange, queueName, key, simpleQueueType,
+		conn, exchange, queueName, key, simpleQueueType, args,
 	)
 	if err != nil {
 		return err

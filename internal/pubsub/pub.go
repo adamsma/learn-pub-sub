@@ -37,6 +37,7 @@ func DeclareAndBind(
 	queueName,
 	key string,
 	simpleQueueType int, // an enum to represent "durable" or "transient"
+	args amqp.Table,
 ) (*amqp.Channel, amqp.Queue, error) {
 
 	mqChan, err := conn.Channel()
@@ -50,7 +51,7 @@ func DeclareAndBind(
 		simpleQueueType == QueueTypeTransient,
 		simpleQueueType == QueueTypeTransient,
 		false,
-		nil,
+		args,
 	)
 	if err != nil {
 		log.Fatalf("unable to declare queue: %v", err)

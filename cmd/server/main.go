@@ -36,6 +36,7 @@ func main() {
 		routing.GameLogSlug,
 		fmt.Sprintf("%s.*", routing.GameLogSlug),
 		pubsub.QueueTypeDurable,
+		nil,
 	)
 	if err != nil {
 		log.Fatalf("unable to create new queue: %v", err)
