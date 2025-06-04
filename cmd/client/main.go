@@ -51,8 +51,16 @@ func main() {
 		fmt.Print("> ")
 
 		switch outcome {
-		case gamelogic.MoveOutComeSafe, gamelogic.MoveOutcomeMakeWar:
+		case gamelogic.MoveOutComeSafe:
 			return pubsub.Ack
+		case gamelogic.MoveOutcomeMakeWar:
+			pubsub.PublishJSON(
+				mqChan,
+				routing.ExchangePerilTopic,
+				routing.WarRecognitionsPrefix+"."+username,
+				"War has begun for "+username,
+			)
+			return pubsub.NackRequeue
 		case gamelogic.MoveOutcomeSamePlayer:
 			fallthrough
 		default:
