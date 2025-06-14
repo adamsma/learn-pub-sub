@@ -47,20 +47,31 @@ func main() {
 	}
 
 	handlerMove := func(move gamelogic.ArmyMove) pubsub.AckType {
+
+		defer fmt.Print("> ")
 		outcome := gamestate.HandleMove(move)
-		fmt.Print("> ")
 
 		switch outcome {
+
 		case gamelogic.MoveOutComeSafe:
 			return pubsub.Ack
+
 		case gamelogic.MoveOutcomeMakeWar:
-			pubsub.PublishJSON(
+			err := pubsub.PublishJSON(
 				mqChan,
 				routing.ExchangePerilTopic,
 				routing.WarRecognitionsPrefix+"."+username,
-				"War has begun for "+username,
+				gamelogic.RecognitionOfWar{
+					Attacker: move.Player, Defender: gamestate.Player,
+				},
 			)
-			return pubsub.NackRequeue
+
+			if err != nil {
+				return pubsub.NackRequeue
+			}
+
+			return pubsub.Ack
+
 		case gamelogic.MoveOutcomeSamePlayer:
 			fallthrough
 		default:
@@ -79,6 +90,42 @@ func main() {
 	)
 	if err != nil {
 		log.Fatalf("unable to subscribe to move queue: %v", err)
+	}
+
+	handlerWar := func(rw gamelogic.RecognitionOfWar) pubsub.AckType {
+
+		defer fmt.Print("> ")
+		outcome, _, _ := gamestate.HandleWar(rw)
+
+		switch outcome {
+		case gamelogic.WarOutcomeNotInvolved:
+			return pubsub.NackRequeue
+		case gamelogic.WarOutcomeNoUnits:
+			return pubsub.NackDiscard
+		case gamelogic.WarOutcomeOpponentWon:
+			return pubsub.Ack
+		case gamelogic.WarOutcomeYouWon:
+			return pubsub.Ack
+		case gamelogic.WarOutcomeDraw:
+			return pubsub.Ack
+		default:
+			fmt.Printf("unknown war outcome: %v", outcome)
+			return pubsub.NackDiscard
+		}
+
+	}
+
+	// subscribe to war queue
+	err = pubsub.SubscribeJSON(
+		conn,
+		routing.ExchangePerilTopic,
+		"war",
+		routing.WarRecognitionsPrefix+".*",
+		pubsub.QueueTypeDurable,
+		handlerWar,
+	)
+	if err != nil {
+		log.Fatalf("unable to subscribe to war queue: %v", err)
 	}
 
 gameloop:
